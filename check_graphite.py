@@ -24,7 +24,10 @@
 #
 # Changelog
 # 2018-09-07 Improve check output, add verbose mode Christian Wirtz <doc@snowheaven.de>
-#
+# 2025-06-24 Fixed incorrect perfdata format. 
+#            Removed 'time' from perfdata metrics.
+#            TODO: fix mode == 1, this does not bring the desired result
+#            Dominik Lueffe <dominik.lueffe@komm.one>
 #############################################################################
 
 import urllib2
@@ -69,31 +72,40 @@ def main():
   data = getGraph(cars['g'], cars['H'], cars['t'])
 
   # Handle thresholds
+  # Perfdata has to be a space separated list of this pattern:
+  # 'label'=value[UOM];[warn];[crit];[min];[max]
   perfdata = ""
   if cars['m'] == '0':
     result = handleThreshold(data[0], cars['w'], cars['c'])
+    resultstr = result
 
     if result == 'ERROR':
       die('Invalid thresholds')
-    perfdata = '|time='+str(data[1])+' value='+str(data[0])
+    perfdata = '|value='+str(data[0])
 
   elif cars['m'] == '1':
     result = handleOverThreshold(data[2], cars['c'], cars['w'], cars['T'])
+    resultstr = result[0]
     if result[0] == 'ERROR':
       die('Invalid thresholds')
 
-    perfdata = '|count='+str(result[1])+';perc='+str(result[2])
+    perfdata = '|count='+str(result[1])+' perc='+str(result[2])
+  
+  else:
+    die('Invalid mode')
 
   mmas = getMaxMinAvgSum(data[2])
   if cars['w'] != None:
-    perfdata += ' warn='+cars['w']
+    perfdata += ';'+cars['w']
+  else:
+    perfdata += ';'
   if cars['c'] != None:
-    perfdata += ' crit='+cars['c']
+    perfdata += ';'+cars['c']
+  else:
+    perfdata += ';'
 
   # Perfdata
-  perfdata += ' max='+str(mmas[0])+' min='+str(mmas[1])+' avg='+str(mmas[2])+' sum='+str(mmas[3])+''
-  #";max={mmas[0]!s};min={mmas[1]!s};avg={mmas[2]!s};sum={mmas[3]};from={cars['t']}"
-  #2.4: no proper formatting
+  perfdata += ';'+str(mmas[1])+';'+str(mmas[0])+' avg='+str(mmas[2])+' sum='+str(mmas[3])
 
   # Create check output text and add threshold info
   if cars['w'] != None and cars['c'] != None:
@@ -105,11 +117,12 @@ def main():
   if 'v' in cars: print "time frame: " + cars['t']
   if 'v' in cars: print "output    : " + output
   if 'v' in cars: print "perfdata  : " + perfdata
-  if 'v' in cars: print "result    : " + result
+  if 'v' in cars: print "result    : " + resultstr
+  if 'v' in cars: print "min,max   : " + str(mmas[1]) + ", " + str(mmas[0])
   if 'v' in cars: print "\n\n"
 
   # Output
-  print output + perfdata
+  print str(resultstr) + ' - ' + output + perfdata
 
   if result == 'CRITICAL':
     sys.exit(2)
